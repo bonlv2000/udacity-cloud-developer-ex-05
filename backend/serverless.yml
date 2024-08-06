@@ -2,6 +2,7 @@ service: serverless-todo-app-test-001
 
 plugins:
   - serverless-iam-roles-per-function
+  - serverless-reqvalidator-plugin
 
 frameworkVersion: '3'
 
