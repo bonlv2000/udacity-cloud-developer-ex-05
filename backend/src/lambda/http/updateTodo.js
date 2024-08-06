@@ -1,9 +1,13 @@
-import { DynamoDB } from '@aws-sdk/client-dynamodb'
-import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb'
 import middy from '@middy/core'
 import cors from '@middy/http-cors'
-import { handler as getUserId } from '../auth/userId.js'
 import httpErrorHandler from '@middy/http-error-handler'
+
+import { getUserId } from '../utils.mjs'
+import { updateTodo } from '../../businessLogic/todos.mjs'
+import { createLogger } from '../../utils/logger.mjs'
+
+const logger = createLogger('Todos logger')
+
 /**
  * {
     "name": "Buy bread",
@@ -11,49 +15,28 @@ import httpErrorHandler from '@middy/http-error-handler'
     "done": true
 }
  */
-const dynamoDbDocument = DynamoDBDocument.from(new DynamoDB())
-const todoTable = process.env.TODO_TABLE
 
-export const handler = middy(async (event) => {
-  try {
-    const parsedBody = JSON.parse(event.body)
-    console.log('Parsed request body:', parsedBody)
+export const handler = middy()
+  .use(httpErrorHandler())
+  .use(
+    cors({
+      credentials: true
+    })
+  )
+  .handler(async (event) => {
+    logger.info('update todo')
 
-    const authorization = event.headers.Authorization
-    const userId = getUserId(authorization)
-    console.log('User ID:', userId)
+    const todoId = event.pathParameters.todoId
+    const updatedTodo = JSON.parse(event.body)
+    const userId = getUserId(event)
 
-    const newItem = {
-      ...parsedBody,
-      userId,
-      createdAt: new Date().toISOString()
-    }
-
-    await dynamoDbDocument
-      .put({
-        TableName: todoTable,
-        Item: newItem
-      })
-      .promise()
+    await updateTodo(userId, todoId, updatedTodo)
 
     return {
       statusCode: 201,
       headers: {
         'Access-Control-Allow-Origin': '*'
       },
-      body: JSON.stringify({ item: newItem })
+      body: 'update success'
     }
-  } catch (error) {
-    console.error('Error creating new item:', error)
-
-    return {
-      statusCode: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*'
-      },
-      body: JSON.stringify({ error: 'Could not create item' })
-    }
-  }
-})
-  .use(httpErrorHandler())
-  .use(cors({ credentials: true }))
+  })

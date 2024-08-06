@@ -1,45 +1,41 @@
-import { DynamoDB } from '@aws-sdk/client-dynamodb'
-import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb'
-
 import middy from '@middy/core'
 import cors from '@middy/http-cors'
 import httpErrorHandler from '@middy/http-error-handler'
+
+import { createLogger } from '../../utils/logger.mjs'
+import { getUserId } from '../utils.mjs'
+import { deleteTodo } from '../../businessLogic/todos.mjs'
+
+const logger = createLogger('Todos logger')
+
 /**
  * {
       "id":""
     }
  */
-const dynamoDbDocument = DynamoDBDocument.from(new DynamoDB())
-const todoTable = process.env.TODO_TABLE
 
-export const handler = middy(async (event) => {
-  try {
-    const parsedBody = JSON.parse(event.body)
-    const { id } = parsedBody
-    console.log('Delete request for ID:', id)
-
-    await dynamoDbDocument.delete({
-      TableName: todoTable,
-      Key: { id }
+export const handler = middy()
+  .use(httpErrorHandler())
+  .use(
+    cors({
+      credentials: true
     })
+  )
+  .handler(async (event) => {
+    logger.info('delete todo acttion')
+
+    const todoId = event.pathParameters.todoId
+    const userId = getUserId(event)
+
+    await deleteTodo(todoId, userId)
 
     return {
       statusCode: 200,
       headers: {
         'Access-Control-Allow-Origin': '*'
       },
-      body: JSON.stringify({ id })
+      body: JSON.stringify({
+        todo_id: todoId
+      })
     }
-  } catch (error) {
-    console.error('Error deleting item:', error)
-    return {
-      statusCode: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*'
-      },
-      body: JSON.stringify({ error: 'Could not delete item' })
-    }
-  }
-})
-  .use(httpErrorHandler())
-  .use(cors({ credentials: true }))
+  })
